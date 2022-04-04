@@ -1,11 +1,11 @@
 @font-face {
   font-family: "Coolvetica Condensed";
-  src: url("/fonts/coolvetica condensed rg.otf");
+  src: url("fonts/coolvetica condensed rg.otf");
 }
 
 @font-face {
   font-family: "Coolvetica Crammed";
-  src: url("/fonts/coolvetica crammed rg.otf");
+  src: url("fonts/coolvetica crammed rg.otf");
 }
 
 :root {
