@@ -1,4 +1,15 @@
 @font-face {
+  font-family: "Coolvetica";
+  src: url("fonts/coolvetica rg.otf");
+}
+
+@font-face {
+  font-family: "Coolvetica";
+  src: url("fonts/coolvetica rg it.otf");
+  font-style: italic;
+}
+
+@font-face {
   font-family: "Coolvetica Condensed";
   src: url("fonts/coolvetica condensed rg.otf");
 }
@@ -11,6 +22,7 @@
 :root {
   --red: #bc302f;
   --whitish: #faf6ec;
+  --medium: #9b8080;
   --darkish: #362724;
 }
 

@@ -1,6 +1,7 @@
 <script>
   import * as zip from "@zip.js/zip.js";
-
+  import Sortable from "sortablejs";
+  import { onMount } from "svelte";
   export let file;
 
   let current_page = 0;
@@ -46,7 +47,6 @@
   };
 
   const handleWheel = (e) => {
-    e.preventDefault();
     imageContainer.scrollLeft += e.deltaY;
   };
   const handlePageScroll = (e) => {
@@ -60,6 +60,12 @@
     }
     current_page = Math.max(0, low - 1);
   };
+
+  onMount(() => {
+    new Sortable(imageContainer, {
+      animation: 150,
+    });
+  });
 </script>
 
 <svelte:window on:keydown={handleKeys} />
@@ -82,17 +88,19 @@
       {/await}
     {/each}
   {/await}
-  <label class="page-indicator" for="page-number">
+</div>
+<div class="side-pane">
+  <div class="page-indicator">
     <input
       id="page-number"
       class="page-number"
       type="text"
       value={current_page + 1}
       on:input={handlePageNumberInput}
+      on:focus={(e) => e.target.select()}
     />
-    <div class="by">/</div>
-    <div class="total-pages">{loadCount}</div>
-  </label>
+    <div class="total-pages">/{loadCount}</div>
+  </div>
 </div>
 
 <style>
@@ -100,31 +108,50 @@
     display: flex;
     height: 100vh;
     overflow-x: scroll;
+    gap: 10px;
+  }
+  .side-pane {
+    display: flex;
+    flex-direction: column;
+    color: var(--medium);
+    background-color: var(--whitish);
+    font-family: Coolvetica;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 60px;
   }
   .page-indicator {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    color: var(--darkish);
-    font-family: Poppins;
-    font-weight: 600;
+    align-self: flex-start;
+    padding: 20px 0;
     display: flex;
-    font-size: 16px;
+    flex-direction: column;
+    align-items: center;
   }
   .page-number {
-    text-align: right;
+    text-align: center;
     border: none;
     background: none;
-    color: var(--darkish);
+    outline: none;
+    color: var(--medium);
     font-family: Poppins;
     font-weight: 600;
     margin: 0;
     padding: 0;
-    font-size: 16px;
+    font-size: 24px;
+    min-width: 0;
+    width: 100%;
+    cursor: default;
+  }
+  .page-number:hover {
+    background-color: #3627240f;
+  }
+  .page-number:focus {
+    cursor: text;
   }
   .total-pages {
-    min-width: 30px;
-    text-align: left;
+    font-size: 14px;
   }
   img {
     height: 100%;
