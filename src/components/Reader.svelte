@@ -12,16 +12,25 @@
       .filter((entry) => !entry.directory && entry.filename)
       .sort((entry1, entry2) => entry1.filename.localeCompare(entry2.filename));
 
+  let cursor_mode = "pointer";
   const handleKeys = (e) => {
+    // Disregard if modifier key is held down
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    console.log(e);
     // console.log(diff, pageIdx);
-    // if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-    //   if (current_page) current_page -= 1;
-    // }
-    // if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-    //   if (current_page + 1 < pages.length) {
-    //     current_page += 1;
-    //   }
-    // }
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      imageContainer.scrollLeft -= 50;
+    }
+
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      imageContainer.scrollLeft += 50;
+    }
+    if (e.key === "h" || e.key === "H") {
+      cursor_mode = "hand";
+    }
+    if (e.key === "v" || e.key === "v") {
+      cursor_mode = "pointer";
+    }
     // last = Date.now();
   };
 
@@ -40,7 +49,6 @@
   const handlePageNumberInput = (e) => {
     const page_new = parseInt(e.target.value);
     if (Number.isNaN(page_new)) return;
-    console.log("Reached here too!");
     if (!imageElems.hasOwnProperty(page_new - 1)) return;
     imageContainer.scrollLeft +=
       imageElems[page_new - 1].getBoundingClientRect().x;
@@ -66,15 +74,29 @@
       animation: 150,
     });
   });
+
+  let showSidePane = false;
+  const handlePageNumberInputFocus = (e) => {
+    e.target.select();
+    showSidePane = true;
+  };
+  const handlePageNumberInputBlur = (e) => {
+    showSidePane = false;
+  };
 </script>
 
 <svelte:window on:keydown={handleKeys} />
+
+<svelte:head>
+  <title>Simpler Days − {file.name}</title>
+</svelte:head>
 
 <div
   class="main-container"
   bind:this={imageContainer}
   on:wheel={handleWheel}
   on:scroll={handlePageScroll}
+  class:hand={cursor_mode === "hand"}
 >
   {#await getPages() then pages}
     {#each pages as page, i}
@@ -89,7 +111,7 @@
     {/each}
   {/await}
 </div>
-<div class="side-pane">
+<div class="side-pane" class:show={showSidePane}>
   <div class="page-indicator">
     <input
       id="page-number"
@@ -97,9 +119,30 @@
       type="text"
       value={current_page + 1}
       on:input={handlePageNumberInput}
-      on:focus={(e) => e.target.select()}
+      on:focus={handlePageNumberInputFocus}
+      on:blur={handlePageNumberInputBlur}
     />
-    <div class="total-pages">/{loadCount}</div>
+    <div class="total-pages default-hide">/{loadCount}</div>
+  </div>
+  <div class="action-col default-hide">
+    <div
+      class="icon-wrap"
+      class:active={cursor_mode === "pointer"}
+      on:click={() => (cursor_mode = "pointer")}
+    >
+      <img src="images/pointer.svg" />
+    </div>
+    <div
+      class="icon-wrap"
+      class:active={cursor_mode === "hand"}
+      on:click={() => (cursor_mode = "hand")}
+    >
+      <img src="images/hand.svg" />
+    </div>
+    <div class="separator" />
+    <div class="icon-wrap"><img src="images/twopage.svg" /></div>
+    <div class="icon-wrap"><img src="images/continuous.svg" /></div>
+    <div class="icon-wrap"><img src="images/singlepage.svg" /></div>
   </div>
 </div>
 
@@ -110,20 +153,39 @@
     overflow-x: scroll;
     gap: 10px;
   }
+  .main-container.hand {
+    cursor: grab;
+  }
   .side-pane {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     color: var(--medium);
-    background-color: var(--whitish);
+    background-color: transparent;
     font-family: Coolvetica;
     position: fixed;
     top: 0;
     bottom: 0;
     right: 0;
     width: 60px;
+    transition: all 0.1s ease;
+    cursor: default;
   }
+  .side-pane:hover,
+  .side-pane.show {
+    background-color: var(--whitish);
+  }
+
+  .side-pane .default-hide {
+    opacity: 0;
+    transition: all 0.1s ease;
+  }
+  .side-pane:hover .default-hide,
+  .side-pane.show .default-hide {
+    opacity: 1;
+  }
+
   .page-indicator {
-    align-self: flex-start;
     padding: 20px 0;
     display: flex;
     flex-direction: column;
@@ -153,6 +215,47 @@
   .total-pages {
     font-size: 14px;
   }
+
+  .action-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 4px;
+  }
+
+  .action-col .separator {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: 6px 0;
+  }
+  .action-col .separator::after {
+    content: "";
+    width: 60%;
+    height: 3px;
+    border-radius: 3px;
+    background-color: var(--medium);
+  }
+
+  .action-col .icon-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+    user-select: none;
+    height: 50px;
+  }
+
+  .action-col .icon-wrap.active,
+  .action-col .icon-wrap:hover {
+    background-color: #3627240f;
+  }
+
+  .action-col img {
+    width: 18px;
+  }
+
   img {
     height: 100%;
     object-fit: contain;

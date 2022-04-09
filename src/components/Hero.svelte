@@ -53,6 +53,9 @@
     color: inherit;
     background: rgba(255, 255, 255, 0.1);
   }
+  .container {
+    padding: min(10px, 2vw);
+  }
   .heading {
     font-family: "Coolvetica Crammed";
     text-transform: uppercase;
