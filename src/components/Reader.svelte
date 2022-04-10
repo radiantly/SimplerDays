@@ -13,6 +13,7 @@
       .sort((entry1, entry2) => entry1.filename.localeCompare(entry2.filename));
 
   let cursor_mode = "pointer";
+  let view_mode = "continuous";
   const handleKeys = (e) => {
     // Disregard if modifier key is held down
     if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -69,9 +70,37 @@
     current_page = Math.max(0, low - 1);
   };
 
+  // Initial mouse courdinates if dragging
+  let initMouseCoords = null;
+  const handleImgDragStart = (e) => {
+    if (cursor_mode === "pointer") return e.preventDefault();
+  };
+  const handleMouseDown = (e) => {
+    if (initMouseCoords) return;
+    if (e.buttons & 1)
+      initMouseCoords = {
+        x: e.clientX,
+        y: e.clientY,
+        scrollLeft: imageContainer.scrollLeft,
+      };
+  };
+  const handleMouseUp = (e) => {
+    if (e.buttons & 1) return;
+    initMouseCoords = null;
+  };
+  const handleMouseMove = (e) => {
+    if (!initMouseCoords) return;
+    const { x, scrollLeft } = initMouseCoords;
+    if (cursor_mode === "pointer") {
+      // console.log(e.clientX - x, e.clientY - y);
+      imageContainer.scrollLeft = scrollLeft - (e.clientX - x);
+    }
+  };
+
   onMount(() => {
     new Sortable(imageContainer, {
       animation: 150,
+      filter: ".side-pane",
     });
   });
 
@@ -97,6 +126,10 @@
   on:wheel={handleWheel}
   on:scroll={handlePageScroll}
   class:hand={cursor_mode === "hand"}
+  draggable="false"
+  on:mousedown={handleMouseDown}
+  on:mouseup={handleMouseUp}
+  on:mousemove={handleMouseMove}
 >
   {#await getPages() then pages}
     {#each pages as page, i}
@@ -106,6 +139,8 @@
           on:load={() => URL.revokeObjectURL(objectURL)}
           alt="page"
           bind:this={imageElems[i]}
+          draggable="false"
+          on:dragstart={handleImgDragStart}
         />
       {/await}
     {/each}
@@ -130,19 +165,25 @@
       class:active={cursor_mode === "pointer"}
       on:click={() => (cursor_mode = "pointer")}
     >
-      <img src="images/pointer.svg" />
+      <img src="images/pointer.svg" alt="Normal cursor" />
     </div>
     <div
       class="icon-wrap"
       class:active={cursor_mode === "hand"}
       on:click={() => (cursor_mode = "hand")}
     >
-      <img src="images/hand.svg" />
+      <img src="images/hand.svg" alt="Hand cursor" />
     </div>
     <div class="separator" />
-    <div class="icon-wrap"><img src="images/twopage.svg" /></div>
-    <div class="icon-wrap"><img src="images/continuous.svg" /></div>
-    <div class="icon-wrap"><img src="images/singlepage.svg" /></div>
+    <div class="icon-wrap">
+      <img src="images/twopage.svg" alt="Two page mode" />
+    </div>
+    <div class="icon-wrap" class:active={view_mode === "continuous"}>
+      <img src="images/continuous.svg" alt="Continuous page mode" />
+    </div>
+    <div class="icon-wrap">
+      <img src="images/singlepage.svg" alt="Single page mode" />
+    </div>
   </div>
 </div>
 
@@ -259,5 +300,9 @@
   img {
     height: 100%;
     object-fit: contain;
+    user-select: none;
+
+    /* Fix for Chrome's blurry downscaling of images */
+    image-rendering: -webkit-optimize-contrast;
   }
 </style>
