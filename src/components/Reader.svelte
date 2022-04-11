@@ -13,7 +13,7 @@
       .sort((entry1, entry2) => entry1.filename.localeCompare(entry2.filename));
 
   let cursor_mode = "pointer";
-  let view_mode = "continuous";
+  let view_mode = "continuous_horizontal";
   const handleKeys = (e) => {
     // Disregard if modifier key is held down
     if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -76,6 +76,7 @@
     if (cursor_mode === "pointer") return e.preventDefault();
   };
   const handleMouseDown = (e) => {
+    if (cursor_mode !== "pointer") return;
     if (initMouseCoords) return;
     if (e.buttons & 1)
       initMouseCoords = {
@@ -85,16 +86,15 @@
       };
   };
   const handleMouseUp = (e) => {
+    if (cursor_mode !== "pointer") return;
     if (e.buttons & 1) return;
     initMouseCoords = null;
   };
   const handleMouseMove = (e) => {
+    if (cursor_mode !== "pointer") return;
     if (!initMouseCoords) return;
     const { x, scrollLeft } = initMouseCoords;
-    if (cursor_mode === "pointer") {
-      // console.log(e.clientX - x, e.clientY - y);
-      imageContainer.scrollLeft = scrollLeft - (e.clientX - x);
-    }
+    imageContainer.scrollLeft = scrollLeft - (e.clientX - x);
   };
 
   onMount(() => {
@@ -165,24 +165,39 @@
       class:active={cursor_mode === "pointer"}
       on:click={() => (cursor_mode = "pointer")}
     >
-      <img src="images/pointer.svg" alt="Normal cursor" />
+      <img draggable="false" src="images/pointer.svg" alt="Normal cursor" />
     </div>
     <div
       class="icon-wrap"
       class:active={cursor_mode === "hand"}
       on:click={() => (cursor_mode = "hand")}
     >
-      <img src="images/hand.svg" alt="Hand cursor" />
+      <img draggable="false" src="images/hand.svg" alt="Hand cursor" />
     </div>
     <div class="separator" />
     <div class="icon-wrap">
-      <img src="images/twopage.svg" alt="Two page mode" />
-    </div>
-    <div class="icon-wrap" class:active={view_mode === "continuous"}>
-      <img src="images/continuous.svg" alt="Continuous page mode" />
+      <img
+        draggable="false"
+        src="images/singlepage.svg"
+        alt="Single page mode"
+      />
     </div>
     <div class="icon-wrap">
-      <img src="images/singlepage.svg" alt="Single page mode" />
+      <img draggable="false" src="images/twopage.svg" alt="Two page mode" />
+    </div>
+    <div class="icon-wrap" class:active={view_mode === "continuous_horizontal"}>
+      <img
+        draggable="false"
+        src="images/continuous-horizontal.svg"
+        alt="Continuous page mode"
+      />
+    </div>
+    <div class="icon-wrap" class:active={view_mode === "continuous_vertical"}>
+      <img
+        draggable="false"
+        src="images/continuous-vertical.svg"
+        alt="Continuous page mode"
+      />
     </div>
   </div>
 </div>
@@ -283,9 +298,8 @@
     width: 100%;
     display: flex;
     justify-content: center;
-    padding: 4px 0;
     user-select: none;
-    height: 50px;
+    height: 45px;
   }
 
   .action-col .icon-wrap.active,
