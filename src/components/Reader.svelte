@@ -1,10 +1,16 @@
 <script>
   import * as zip from "@zip.js/zip.js";
-  import Sortable from "sortablejs";
-  import { onMount } from "svelte";
+  import gsap from "gsap";
+  import Flip from "gsap/Flip";
   export let file;
 
+  gsap.registerPlugin(Flip);
+
   let current_page = 0;
+  let loadCount = 0;
+
+  let imageContainer;
+  const imageElems = [];
 
   const reader = new zip.ZipReader(new zip.BlobReader(file));
   const getPages = async () =>
@@ -14,28 +20,33 @@
 
   let cursor_mode = "pointer";
   let view_mode = "continuous_horizontal";
+
+  const goToPage = (page_index) => {
+    if (!imageElems.hasOwnProperty(page_index)) return;
+    imageContainer.scrollLeft +=
+      imageElems[page_index].getBoundingClientRect().x;
+  };
+
   const handleKeys = (e) => {
     // Disregard if modifier key is held down
     if (e.altKey || e.ctrlKey || e.metaKey) return;
-    console.log(e);
-    // console.log(diff, pageIdx);
+
+    console.log(e.key);
     if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
       imageContainer.scrollLeft -= 50;
-    }
-
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+    } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
       imageContainer.scrollLeft += 50;
-    }
-    if (e.key === "h" || e.key === "H") {
+    } else if (e.key === "h" || e.key === "H") {
       cursor_mode = "hand";
-    }
-    if (e.key === "v" || e.key === "v") {
+    } else if (e.key === "v" || e.key === "v") {
       cursor_mode = "pointer";
+    } else if (e.key === "PageUp") {
+      goToPage(current_page - 1);
+    } else if (e.key === "PageDown") {
+      goToPage(current_page + 1);
     }
-    // last = Date.now();
   };
 
-  let loadCount = 0;
   const createPageURL = async (page) => {
     const pageBlob = await page.getData(new zip.BlobWriter("image/jpeg"), {
       useWebWorkers: true,
@@ -44,22 +55,38 @@
     return URL.createObjectURL(pageBlob);
   };
 
-  let imageContainer;
-  const imageElems = [];
-
   const handlePageNumberInput = (e) => {
     const page_new = parseInt(e.target.value);
     if (Number.isNaN(page_new)) return;
-    if (!imageElems.hasOwnProperty(page_new - 1)) return;
-    imageContainer.scrollLeft +=
-      imageElems[page_new - 1].getBoundingClientRect().x;
+    goToPage(page_new - 1);
   };
 
+  // properties related to mouse drag
+  let dragProps = null;
+
+  // Handle the mouse wheel event to convert vertical scrolling to horizontal scrolling
   const handleWheel = (e) => {
     imageContainer.scrollLeft += e.deltaY;
+
+    // If the mouse is currently pressed, accordingly update internal initial values
+    if (dragProps) {
+      if (dragProps.node) {
+        // in hand moode
+        dragProps.x -= e.deltaY;
+        dragProps.setNodeOffsetX(e.clientX - dragProps.x);
+      } else {
+        // in pointer mode
+        dragProps.x += e.deltaY;
+      }
+    }
   };
+
+  // Update current page number when scrolled
   const handlePageScroll = (e) => {
+    // Offset in px from the side
     const offset = 10;
+
+    // Binary search FTW
     let low = 0;
     let high = imageElems.length - 1;
     while (low <= high) {
@@ -70,39 +97,93 @@
     current_page = Math.max(0, low - 1);
   };
 
-  // Initial mouse courdinates if dragging
-  let initMouseCoords = null;
-  const handleImgDragStart = (e) => {
-    if (cursor_mode === "pointer") return e.preventDefault();
-  };
+  const isPrimaryMouseButtonPressed = (mouseEvent) => mouseEvent.buttons & 1;
+
+  // Handle clicking and dragging
   const handleMouseDown = (e) => {
-    if (cursor_mode !== "pointer") return;
-    if (initMouseCoords) return;
-    if (e.buttons & 1)
-      initMouseCoords = {
-        x: e.clientX,
-        y: e.clientY,
-        scrollLeft: imageContainer.scrollLeft,
-      };
-  };
-  const handleMouseUp = (e) => {
-    if (cursor_mode !== "pointer") return;
-    if (e.buttons & 1) return;
-    initMouseCoords = null;
-  };
-  const handleMouseMove = (e) => {
-    if (cursor_mode !== "pointer") return;
-    if (!initMouseCoords) return;
-    const { x, scrollLeft } = initMouseCoords;
-    imageContainer.scrollLeft = scrollLeft - (e.clientX - x);
+    // If we already have drag info, then ignore event
+    // (this happens when a MouseDown event occurs, but there is no subsequent MouseUp)
+    // For example, when the cursor is released outside the page.
+    if (dragProps) return;
+
+    if (!isPrimaryMouseButtonPressed(e)) return;
+
+    // Store initial mouse positions and how much the parent container is scrolled
+    dragProps = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: imageContainer.scrollLeft,
+    };
+
+    // In hand mode, also store the element we're dragging and set related classes
+    if (cursor_mode === "hand") {
+      if (!e.target.id?.startsWith("page-")) return;
+      dragProps.node = e.target;
+      dragProps.setNodeOffsetX = gsap.quickSetter(dragProps.node, "x", "px");
+      dragProps.node.classList.add("dragged", "pointer-events-none");
+    }
   };
 
-  onMount(() => {
-    new Sortable(imageContainer, {
-      animation: 150,
-      filter: ".side-pane",
-    });
-  });
+  const handleMouseUp = (e) => {
+    if (isPrimaryMouseButtonPressed(e)) return;
+
+    // (In hand mode)
+    // Move dragged element to original position reset classes
+    if (dragProps.node) {
+      // Get a reference to the dragged node to use later
+      const draggedNode = dragProps.node;
+      gsap.to(draggedNode, {
+        x: 0,
+        duration: 0.2,
+        onComplete: () => draggedNode.classList.remove("dragged"),
+      });
+      dragProps.node.classList.remove("pointer-events-none");
+    }
+
+    dragProps = null;
+  };
+
+  const handleMouseMove = (e) => {
+    // Ignore if no initial drag properties set
+    if (!dragProps) return;
+
+    // In pointer mode, change the container's scroll amount by how much the mouse has been dragged
+    if (cursor_mode === "pointer") {
+      const { x, scrollLeft } = dragProps;
+      imageContainer.scrollLeft = scrollLeft - (e.clientX - x);
+    } else if (cursor_mode === "hand" && dragProps.node) {
+      // In hand mode, check what the current page is being dragged over
+      const over = document.elementFromPoint(e.clientX, e.clientY);
+
+      // If a page, let's swap
+      if (over.id?.startsWith("page-")) {
+        // Before swap, get the x position and record state
+        const currentDraggedX = dragProps.node.getBoundingClientRect().x;
+        const state = Flip.getState(over);
+
+        // Swap with page depending on whether it is after or before current element
+        over.insertAdjacentElement(
+          over.compareDocumentPosition(dragProps.node) &
+            Node.DOCUMENT_POSITION_FOLLOWING
+            ? "beforebegin"
+            : "afterend",
+          dragProps.node
+        );
+
+        // Once swapped, play swap animation using FLIP technique
+        Flip.from(state, {
+          duration: 0.2,
+          toggleClass: "flip-page",
+        });
+
+        // Also change dragProps to new values so that dragged page does not jump around awkwardly
+        const newDraggedX = dragProps.node.getBoundingClientRect().x;
+        dragProps.x += newDraggedX - currentDraggedX;
+      }
+      // Finally update
+      dragProps.setNodeOffsetX(e.clientX - dragProps.x);
+    }
+  };
 
   let showSidePane = false;
   const handlePageNumberInputFocus = (e) => {
@@ -135,12 +216,13 @@
     {#each pages as page, i}
       {#await createPageURL(page) then objectURL}
         <img
+          id={`page-${i}`}
           src={objectURL}
           on:load={() => URL.revokeObjectURL(objectURL)}
           alt="page"
           bind:this={imageElems[i]}
           draggable="false"
-          on:dragstart={handleImgDragStart}
+          on:dragstart={(e) => e.preventDefault()}
         />
       {/await}
     {/each}
@@ -226,6 +308,7 @@
     width: 60px;
     transition: all 0.1s ease;
     cursor: default;
+    z-index: 1337;
   }
   .side-pane:hover,
   .side-pane.show {
@@ -315,8 +398,21 @@
     height: 100%;
     object-fit: contain;
     user-select: none;
+    z-index: 10;
 
     /* Fix for Chrome's blurry downscaling of images */
     image-rendering: -webkit-optimize-contrast;
+  }
+
+  img:global(.flip-page) {
+    pointer-events: none;
+    z-index: 4;
+  }
+  img:global(.dragged) {
+    z-index: 42;
+  }
+
+  img:global(.pointer-events-none) {
+    pointer-events: none;
   }
 </style>
