@@ -6,7 +6,12 @@
 
   gsap.registerPlugin(Flip);
 
+  let rtl = localStorage.getItem("rtl") === "true";
+  $: localStorage.setItem("rtl", rtl.toString());
+
   let current_page = 0;
+  $: localStorage.setItem(file.name, current_page.toString());
+
   let loadCount = 0;
 
   let imageContainer;
@@ -21,10 +26,13 @@
   let cursor_mode = "pointer";
   let view_mode = "continuous_horizontal";
 
+  // Scroll viewport to the page specified
   const goToPage = (page_index) => {
     if (!imageElems.hasOwnProperty(page_index)) return;
-    imageContainer.scrollLeft +=
-      imageElems[page_index].getBoundingClientRect().x;
+    const bounds = imageElems[page_index].getBoundingClientRect();
+    imageContainer.scrollLeft += rtl
+      ? bounds.right - window.innerWidth
+      : bounds.left;
   };
 
   const handleKeys = (e) => {
@@ -91,7 +99,9 @@
     let high = imageElems.length - 1;
     while (low <= high) {
       const mid = Math.floor(low + (high - low) / 2);
-      if (imageElems[mid].getBoundingClientRect().x > offset) high = mid - 1;
+      const bounds = imageElems[mid].getBoundingClientRect();
+      const position = rtl ? window.innerWidth - bounds.right : bounds.left; // Account for RTL
+      if (position > offset) high = mid - 1;
       else low = mid + 1;
     }
     current_page = Math.max(0, low - 1);
@@ -117,7 +127,7 @@
 
     // In hand mode, also store the element we're dragging and set related classes
     if (cursor_mode === "hand") {
-      if (!e.target.id?.startsWith("page-")) return;
+      if (!e.target.dataset.page) return;
       dragProps.node = e.target;
       dragProps.setNodeOffsetX = gsap.quickSetter(dragProps.node, "x", "px");
       dragProps.node.classList.add("dragged", "pointer-events-none");
@@ -156,7 +166,7 @@
       const over = document.elementFromPoint(e.clientX, e.clientY);
 
       // If a page, let's swap
-      if (over.id?.startsWith("page-")) {
+      if (over.dataset.page) {
         // Before swap, get the x position and record state
         const currentDraggedX = dragProps.node.getBoundingClientRect().x;
         const state = Flip.getState(over);
@@ -175,6 +185,15 @@
           duration: 0.2,
           toggleClass: "flip-page",
         });
+
+        // Swap in imageElems array
+        const i = parseInt(dragProps.node.dataset.page);
+        const j = parseInt(over.dataset.page);
+        [imageElems[i], imageElems[j]] = [imageElems[j], imageElems[i]];
+
+        // Swap data attrs themselves
+        dragProps.node.dataset.page = j.toString();
+        over.dataset.page = i.toString();
 
         // Also change dragProps to new values so that dragged page does not jump around awkwardly
         const newDraggedX = dragProps.node.getBoundingClientRect().x;
@@ -207,6 +226,7 @@
   on:wheel={handleWheel}
   on:scroll={handlePageScroll}
   class:hand={cursor_mode === "hand"}
+  class:rtl
   draggable="false"
   on:mousedown={handleMouseDown}
   on:mouseup={handleMouseUp}
@@ -216,7 +236,7 @@
     {#each pages as page, i}
       {#await createPageURL(page) then objectURL}
         <img
-          id={`page-${i}`}
+          data-page={i}
           src={objectURL}
           on:load={() => URL.revokeObjectURL(objectURL)}
           alt="page"
@@ -242,6 +262,11 @@
     <div class="total-pages default-hide">/{loadCount}</div>
   </div>
   <div class="action-col default-hide">
+    <div class="icon-wrap rtl" on:click={() => (rtl = !rtl)}>
+      {rtl ? "LTR" : "RTL"}
+    </div>
+    <div class="separator" />
+
     <div
       class="icon-wrap"
       class:active={cursor_mode === "pointer"}
@@ -290,6 +315,9 @@
     height: 100vh;
     overflow-x: scroll;
     gap: 10px;
+  }
+  .main-container.rtl {
+    flex-direction: row-reverse;
   }
   .main-container.hand {
     cursor: grab;
@@ -388,6 +416,12 @@
   .action-col .icon-wrap.active,
   .action-col .icon-wrap:hover {
     background-color: #3627240f;
+  }
+
+  .action-col .icon-wrap.rtl {
+    font-family: Coolvetica Condensed;
+    align-items: center;
+    font-size: 1.5rem;
   }
 
   .action-col img {
