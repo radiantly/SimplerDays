@@ -108,6 +108,7 @@
   };
 
   const isPrimaryMouseButtonPressed = (mouseEvent) => mouseEvent.buttons & 1;
+  const isMiddleMouseButtonPressed = (mouseEvent) => mouseEvent.buttons & 4;
 
   // Handle clicking and dragging
   const handleMouseDown = (e) => {
@@ -116,7 +117,8 @@
     // For example, when the cursor is released outside the page.
     if (dragProps) return;
 
-    if (!isPrimaryMouseButtonPressed(e)) return;
+    if (!isPrimaryMouseButtonPressed(e) && !isMiddleMouseButtonPressed(e))
+      return;
 
     // Store initial mouse positions and how much the parent container is scrolled
     dragProps = {
@@ -126,8 +128,9 @@
     };
 
     // In hand mode, also store the element we're dragging and set related classes
-    if (cursor_mode === "hand") {
+    if (isMiddleMouseButtonPressed(e)) {
       if (!e.target.dataset.page) return;
+      cursor_mode = "hand";
       dragProps.node = e.target;
       dragProps.setNodeOffsetX = gsap.quickSetter(dragProps.node, "x", "px");
       dragProps.node.classList.add("dragged", "pointer-events-none");
@@ -135,11 +138,12 @@
   };
 
   const handleMouseUp = (e) => {
-    if (isPrimaryMouseButtonPressed(e)) return;
+    if (cursor_mode == "pointer" && isPrimaryMouseButtonPressed(e)) return;
+    if (cursor_mode == "hand" && isMiddleMouseButtonPressed(e)) return;
 
     // (In hand mode)
     // Move dragged element to original position reset classes
-    if (dragProps.node) {
+    if (dragProps?.node) {
       // Get a reference to the dragged node to use later
       const draggedNode = dragProps.node;
       gsap.to(draggedNode, {
@@ -151,6 +155,7 @@
     }
 
     dragProps = null;
+    cursor_mode = "pointer";
   };
 
   const handleMouseMove = (e) => {
@@ -212,6 +217,11 @@
   const handlePageNumberInputBlur = (e) => {
     showSidePane = false;
   };
+
+  const handleRTLClick = () => {
+    setTimeout(goToPage, 0, current_page);
+    rtl = !rtl;
+  };
 </script>
 
 <svelte:window on:keydown={handleKeys} />
@@ -262,7 +272,7 @@
     <div class="total-pages default-hide">/{loadCount}</div>
   </div>
   <div class="action-col default-hide">
-    <div class="icon-wrap rtl" on:click={() => (rtl = !rtl)}>
+    <div class="icon-wrap rtl" on:click={handleRTLClick}>
       {rtl ? "LTR" : "RTL"}
     </div>
     <div class="separator" />
