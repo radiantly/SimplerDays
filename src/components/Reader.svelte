@@ -276,22 +276,6 @@
       {rtl ? "LTR" : "RTL"}
     </div>
     <div class="separator" />
-
-    <div
-      class="icon-wrap"
-      class:active={cursor_mode === "pointer"}
-      on:click={() => (cursor_mode = "pointer")}
-    >
-      <img draggable="false" src="images/pointer.svg" alt="Normal cursor" />
-    </div>
-    <div
-      class="icon-wrap"
-      class:active={cursor_mode === "hand"}
-      on:click={() => (cursor_mode = "hand")}
-    >
-      <img draggable="false" src="images/hand.svg" alt="Hand cursor" />
-    </div>
-    <div class="separator" />
     <div class="icon-wrap">
       <img
         draggable="false"
