@@ -40,10 +40,13 @@
     if (e.altKey || e.ctrlKey || e.metaKey) return;
 
     console.log(e.key);
-    if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-      imageContainer.scrollLeft -= 50;
-    } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-      imageContainer.scrollLeft += 50;
+    if (["ArrowLeft", "ArrowRight"].includes(e.key)) {
+      imageContainer.scrollLeft += e.key === "ArrowRight" ? 50 : -50;
+    } else if (["ArrowUp", "ArrowDown"].includes(e.key)) {
+      imageContainer.scrollLeft +=
+        (!rtl && e.key === "ArrowUp") || (rtl && e.key === "ArrowDown")
+          ? -50
+          : 50;
     } else if (e.key === "h" || e.key === "H") {
       cursor_mode = "hand";
     } else if (e.key === "v" || e.key === "v") {
@@ -74,17 +77,19 @@
 
   // Handle the mouse wheel event to convert vertical scrolling to horizontal scrolling
   const handleWheel = (e) => {
-    imageContainer.scrollLeft += e.deltaY;
+    const initialScroll = imageContainer.scrollLeft;
+    imageContainer.scrollLeft += rtl ? -e.deltaY : e.deltaY;
+    const delta = imageContainer.scrollLeft - initialScroll;
 
     // If the mouse is currently pressed, accordingly update internal initial values
     if (dragProps) {
       if (dragProps.node) {
         // in hand moode
-        dragProps.x -= e.deltaY;
+        dragProps.x -= delta;
         dragProps.setNodeOffsetX(e.clientX - dragProps.x);
       } else {
         // in pointer mode
-        dragProps.x += e.deltaY;
+        dragProps.x += delta;
       }
     }
   };
@@ -174,7 +179,7 @@
       if (over.dataset.page) {
         // Before swap, get the x position and record state
         const currentDraggedX = dragProps.node.getBoundingClientRect().x;
-        const state = Flip.getState(over);
+        const state = Flip.getState(over, { simple: true });
 
         // Swap with page depending on whether it is after or before current element
         over.insertAdjacentElement(
@@ -275,7 +280,8 @@
     <div class="icon-wrap rtl" on:click={handleRTLClick}>
       {rtl ? "LTR" : "RTL"}
     </div>
-    <div class="separator" />
+    <!-- This block can be uncommented once the various page modes have been implemented -->
+    <!-- <div class="separator" />
     <div class="icon-wrap">
       <img
         draggable="false"
@@ -299,7 +305,7 @@
         src="images/continuous-vertical.svg"
         alt="Continuous page mode"
       />
-    </div>
+    </div> -->
   </div>
 </div>
 
