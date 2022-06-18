@@ -1,7 +1,9 @@
 <script>
-  import * as zip from "@zip.js/zip.js";
+  import { ZipReader, BlobReader, BlobWriter } from "@zip.js/zip.js";
+  import { createExtractorFromData } from "node-unrar-js";
   import gsap from "gsap";
   import Flip from "gsap/Flip";
+  import { onMount } from "svelte";
   export let file;
 
   gsap.registerPlugin(Flip);
@@ -17,11 +19,61 @@
   let imageContainer;
   const imageElems = [];
 
-  const reader = new zip.ZipReader(new zip.BlobReader(file));
-  const getPages = async () =>
-    (await reader.getEntries())
-      .filter((entry) => !entry.directory && entry.filename)
-      .sort((entry1, entry2) => entry1.filename.localeCompare(entry2.filename));
+  async function* getPageBlobs() {
+    if (file.name.slice(-1) == "r") {
+      // .cbr
+      const [wasmBinary, data] = await Promise.all([
+        fetch("build/unrar.wasm").then((response) => response.arrayBuffer()),
+        new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.addEventListener("load", (event) => {
+            resolve(event.target?.result);
+          });
+          reader.readAsArrayBuffer(file);
+        }),
+      ]);
+
+      const extractor = await createExtractorFromData({ wasmBinary, data });
+
+      const filesToExtract = [...extractor.getFileList().fileHeaders]
+        .filter((fileHeader) => !fileHeader.flags.directory && fileHeader.name)
+        .map((fileHeader) => fileHeader.name)
+        .sort();
+
+      const { files } = extractor.extract({ files: filesToExtract });
+      for (const { extraction } of files) yield new Blob([extraction]);
+    } else {
+      // .cbz
+      const blobs = (await new ZipReader(new BlobReader(file)).getEntries())
+        .filter((entry) => !entry.directory && entry.filename)
+        .sort((entry1, entry2) =>
+          entry1.filename.localeCompare(entry2.filename)
+        )
+        .map((entry) =>
+          entry.getData(new BlobWriter(), {
+            useWebWorkers: true,
+          })
+        );
+      for (const blob of blobs) yield await blob;
+    }
+  }
+
+  onMount(async () => {
+    for await (const pageBlob of getPageBlobs()) {
+      const image = new Image();
+      image.addEventListener("load", (e) => URL.revokeObjectURL(e.target.src), {
+        once: true,
+      });
+      image.src = URL.createObjectURL(pageBlob);
+      image.draggable = false;
+      image.addEventListener("dragstart", (e) => e.preventDefault());
+      image.setAttribute("data-page", loadCount);
+      image.style.order = loadCount.toString();
+      imageContainer.appendChild(image);
+      imageElems.push(image);
+      loadCount += 1;
+    }
+  });
 
   let cursor_mode = "pointer";
   let view_mode = "continuous_horizontal";
@@ -56,14 +108,6 @@
     } else if (e.key === "PageDown") {
       goToPage(current_page + 1);
     }
-  };
-
-  const createPageURL = async (page) => {
-    const pageBlob = await page.getData(new zip.BlobWriter("image/jpeg"), {
-      useWebWorkers: true,
-    });
-    loadCount += 1;
-    return URL.createObjectURL(pageBlob);
   };
 
   const handlePageNumberInput = (e) => {
@@ -166,7 +210,6 @@
   const handleMouseMove = (e) => {
     // Ignore if no initial drag properties set
     if (!dragProps) return;
-
     // In pointer mode, change the container's scroll amount by how much the mouse has been dragged
     if (cursor_mode === "pointer") {
       const { x, scrollLeft } = dragProps;
@@ -181,14 +224,11 @@
         const currentDraggedX = dragProps.node.getBoundingClientRect().x;
         const state = Flip.getState(over, { simple: true });
 
-        // Swap with page depending on whether it is after or before current element
-        over.insertAdjacentElement(
-          over.compareDocumentPosition(dragProps.node) &
-            Node.DOCUMENT_POSITION_FOLLOWING
-            ? "beforebegin"
-            : "afterend",
-          dragProps.node
-        );
+        // Swap pages
+        [dragProps.node.style.order, over.style.order] = [
+          over.style.order,
+          dragProps.node.style.order,
+        ];
 
         // Once swapped, play swap animation using FLIP technique
         Flip.from(state, {
@@ -246,23 +286,7 @@
   on:mousedown={handleMouseDown}
   on:mouseup={handleMouseUp}
   on:mousemove={handleMouseMove}
->
-  {#await getPages() then pages}
-    {#each pages as page, i}
-      {#await createPageURL(page) then objectURL}
-        <img
-          data-page={i}
-          src={objectURL}
-          on:load={() => URL.revokeObjectURL(objectURL)}
-          alt="page"
-          bind:this={imageElems[i]}
-          draggable="false"
-          on:dragstart={(e) => e.preventDefault()}
-        />
-      {/await}
-    {/each}
-  {/await}
-</div>
+/>
 <div class="side-pane" class:show={showSidePane}>
   <div class="page-indicator">
     <input
@@ -428,7 +452,7 @@
     width: 18px;
   }
 
-  img {
+  .main-container :global(img) {
     height: 100%;
     object-fit: contain;
     user-select: none;
@@ -438,15 +462,15 @@
     image-rendering: -webkit-optimize-contrast;
   }
 
-  img:global(.flip-page) {
+  .main-container :global(img.flip-page) {
     pointer-events: none;
     z-index: 4;
   }
-  img:global(.dragged) {
+  .main-container :global(img.dragged) {
     z-index: 42;
   }
 
-  img:global(.pointer-events-none) {
+  .main-container :global(img.pointer-events-none) {
     pointer-events: none;
   }
 </style>

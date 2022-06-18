@@ -11,6 +11,7 @@
     "@rollup/plugin-commonjs": "^22.0.0",
     "@rollup/plugin-node-resolve": "^13.3.0",
     "rollup": "^2.75.6",
+    "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-css-only": "^3.1.0",
     "rollup-plugin-livereload": "^2.0.5",
     "rollup-plugin-svelte": "^7.1.0",
@@ -18,8 +19,9 @@
     "svelte": "^3.48.0"
   },
   "dependencies": {
-    "@zip.js/zip.js": "^2.4.15",
+    "@zip.js/zip.js": "^2.4.17",
     "gsap": "^3.10.4",
+    "node-unrar-js": "^2.0.0",
     "sirv-cli": "^2.0.2"
   }
 }

@@ -29,12 +29,12 @@
       <label class="select-file">
         <input
           type="file"
-          accept=".cbz,application/vnd.comicbook+zip"
+          accept=".cbr,application/vnd.comicbook-rar,.cbz,application/vnd.comicbook+zip"
           on:change|self={handleSelect}
         />
         select
       </label>
-      a .cbz file to start reading
+      a .cbr or .cbz file to start reading
     </p>
   </form>
 </div>
