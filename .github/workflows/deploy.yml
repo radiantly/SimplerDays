@@ -1,7 +1,6 @@
 name: Build site
 on:
   push:
-  pull_request:
 
 jobs:
   build:
@@ -12,7 +11,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: "17"
+          node-version: "18"
 
       - uses: pnpm/action-setup@v2
         with:

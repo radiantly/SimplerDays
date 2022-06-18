@@ -35,13 +35,28 @@
 
       const extractor = await createExtractorFromData({ wasmBinary, data });
 
-      const filesToExtract = [...extractor.getFileList().fileHeaders]
-        .filter((fileHeader) => !fileHeader.flags.directory && fileHeader.name)
-        .map((fileHeader) => fileHeader.name)
-        .sort();
+      // skip directories and files without a name
+      const entryFilter = (fileHeader) =>
+        !fileHeader.flags.directory && fileHeader.name;
 
-      const { files } = extractor.extract({ files: filesToExtract });
-      for (const { extraction } of files) yield new Blob([extraction]);
+      // get the list of files, sort them and create a map with each file name
+      // and the corresponding page number
+      const pageMap = [...extractor.getFileList().fileHeaders]
+        .filter(entryFilter)
+        .sort((fileHeader1, fileHeader2) =>
+          fileHeader1.name.localeCompare(fileHeader2.name)
+        )
+        .reduce(
+          (map, fileHeader, index) => map.set(fileHeader.name, index),
+          new Map()
+        );
+
+      const { files } = extractor.extract({ files: entryFilter });
+      for (const { fileHeader, extraction } of files)
+        yield {
+          pageBlob: new Blob([extraction]),
+          pageIndex: pageMap.get(fileHeader.name),
+        };
     } else {
       // .cbz
       const blobs = (await new ZipReader(new BlobReader(file)).getEntries())
@@ -54,12 +69,14 @@
             useWebWorkers: true,
           })
         );
-      for (const blob of blobs) yield await blob;
+      let pageIndex = 0;
+      for (const blob of blobs)
+        yield { pageBlob: await blob, pageIndex: pageIndex++ };
     }
   }
 
   onMount(async () => {
-    for await (const pageBlob of getPageBlobs()) {
+    for await (const { pageBlob, pageIndex } of getPageBlobs()) {
       const image = new Image();
       image.addEventListener("load", (e) => URL.revokeObjectURL(e.target.src), {
         once: true,
@@ -67,8 +84,8 @@
       image.src = URL.createObjectURL(pageBlob);
       image.draggable = false;
       image.addEventListener("dragstart", (e) => e.preventDefault());
-      image.setAttribute("data-page", loadCount);
-      image.style.order = loadCount.toString();
+      image.setAttribute("data-page", pageIndex);
+      image.style.order = pageIndex.toString();
       imageContainer.appendChild(image);
       imageElems.push(image);
       loadCount += 1;
