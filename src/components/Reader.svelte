@@ -1,6 +1,5 @@
 <script>
   import { ZipReader, BlobReader, BlobWriter } from "@zip.js/zip.js";
-  import { createExtractorFromData } from "node-unrar-js";
   import gsap from "gsap";
   import Flip from "gsap/Flip";
   import { onMount } from "svelte";
@@ -19,44 +18,15 @@
   let imageContainer;
   const imageElems = [];
 
-  async function* getPageBlobs() {
+  async function getPageBlobs(callback) {
     if (file.name.slice(-1) == "r") {
       // .cbr
-      const [wasmBinary, data] = await Promise.all([
-        fetch("build/unrar.wasm").then((response) => response.arrayBuffer()),
-        new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.addEventListener("load", (event) => {
-            resolve(event.target?.result);
-          });
-          reader.readAsArrayBuffer(file);
-        }),
-      ]);
+      const worker = new Worker(new URL("../rar-worker.js", import.meta.url));
+      worker.addEventListener("message", ({ data }) => {
+        callback(data);
+      });
 
-      const extractor = await createExtractorFromData({ wasmBinary, data });
-
-      // skip directories and files without a name
-      const entryFilter = (fileHeader) =>
-        !fileHeader.flags.directory && fileHeader.name;
-
-      // get the list of files, sort them and create a map with each file name
-      // and the corresponding page number
-      const pageMap = [...extractor.getFileList().fileHeaders]
-        .filter(entryFilter)
-        .sort((fileHeader1, fileHeader2) =>
-          fileHeader1.name.localeCompare(fileHeader2.name)
-        )
-        .reduce(
-          (map, fileHeader, index) => map.set(fileHeader.name, index),
-          new Map()
-        );
-
-      const { files } = extractor.extract({ files: entryFilter });
-      for (const { fileHeader, extraction } of files)
-        yield {
-          pageBlob: new Blob([extraction]),
-          pageIndex: pageMap.get(fileHeader.name),
-        };
+      worker.postMessage({ file });
     } else {
       // .cbz
       const blobs = (await new ZipReader(new BlobReader(file)).getEntries())
@@ -71,12 +41,13 @@
         );
       let pageIndex = 0;
       for (const blob of blobs)
-        yield { pageBlob: await blob, pageIndex: pageIndex++ };
+        callback({ pageBlob: await blob, pageIndex: pageIndex++ });
     }
   }
 
   onMount(async () => {
-    for await (const { pageBlob, pageIndex } of getPageBlobs()) {
+    const fragment = document.createDocumentFragment();
+    getPageBlobs(({ pageBlob, pageIndex }) => {
       const image = new Image();
       image.addEventListener("load", (e) => URL.revokeObjectURL(e.target.src), {
         once: true,
@@ -86,10 +57,21 @@
       image.addEventListener("dragstart", (e) => e.preventDefault());
       image.setAttribute("data-page", pageIndex);
       image.style.order = pageIndex.toString();
-      imageContainer.appendChild(image);
+      fragment.appendChild(image);
       imageElems.push(image);
-      loadCount += 1;
-    }
+    });
+
+    const addImages = () => {
+      if (fragment.childElementCount) {
+        loadCount += fragment.childElementCount;
+        imageContainer.appendChild(fragment);
+      }
+
+      console.log("hii??");
+      // TODO: stop timeout once all pages have been loaded
+      setTimeout(addImages, 112);
+    };
+    addImages();
   });
 
   let cursor_mode = "pointer";
@@ -363,6 +345,8 @@
   .main-container.hand {
     cursor: grab;
   }
+  /* .top-bar {
+  } */
   .side-pane {
     display: flex;
     flex-direction: column;
@@ -432,7 +416,7 @@
     gap: 4px;
   }
 
-  .action-col .separator {
+  /* .action-col .separator {
     display: flex;
     justify-content: center;
     width: 100%;
@@ -444,7 +428,7 @@
     height: 3px;
     border-radius: 3px;
     background-color: var(--medium);
-  }
+  } */
 
   .action-col .icon-wrap {
     width: 100%;
@@ -454,7 +438,7 @@
     height: 45px;
   }
 
-  .action-col .icon-wrap.active,
+  /* .action-col .icon-wrap.active, */
   .action-col .icon-wrap:hover {
     background-color: #3627240f;
   }
@@ -465,9 +449,9 @@
     font-size: 1.5rem;
   }
 
-  .action-col img {
+  /* .action-col img {
     width: 18px;
-  }
+  } */
 
   .main-container :global(img) {
     height: 100%;
