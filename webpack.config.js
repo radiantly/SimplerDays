@@ -5,7 +5,7 @@ const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 const prod = process.env.NODE_ENV === "production";
 
-module.exports = {
+module.exports = (env) => ({
   // the main app entry file
   entry: {
     app: ["./src/main.js"],
@@ -14,7 +14,7 @@ module.exports = {
   // directory to output files to
   output: {
     path: path.resolve(__dirname, "public/build/"),
-    publicPath: "/build/",
+    publicPath: env.PUBLIC_PATH || "/build/",
     filename: "bundle.js",
     clean: prod,
   },
@@ -90,4 +90,4 @@ module.exports = {
           port: "auto",
         },
       }),
-};
+});

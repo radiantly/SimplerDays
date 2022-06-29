@@ -32,6 +32,10 @@ self.addEventListener("message", async ({ data: { file } }) => {
       new Map()
     );
 
+  self.postMessage({
+    pageCount: pageMap.size,
+  });
+
   const { files } = extractor.extract({ files: entryFilter });
   for (const { fileHeader, extraction } of files)
     self.postMessage({

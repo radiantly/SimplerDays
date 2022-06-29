@@ -18,7 +18,7 @@ jobs:
           version: latest
           run_install: true
 
-      - run: pnpm run build
+      - run: pnpm build --env PUBLIC_PATH=/SimplerDays/build/
 
       - uses: peaceiris/actions-gh-pages@v3
         with:

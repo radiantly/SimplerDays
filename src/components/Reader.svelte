@@ -13,18 +13,26 @@
   let current_page = 0;
   $: localStorage.setItem(file.name, current_page.toString());
 
-  let loadCount = 0;
-
   let imageContainer;
   const imageElems = [];
 
-  async function getPageBlobs(callback) {
+  /**
+   * Reads the file to return file info and page blobs
+   * @param {function({pageCount: int})} initialCallback - called when file has completed inital parsing
+   * @param {function({pageBlob: Blob, pageIndex: int})} pageCallback - called for each page
+   */
+  async function getPageBlobs(initialCallback, pageCallback) {
     if (file.name.slice(-1) == "r") {
       // .cbr
       const worker = new Worker(new URL("../rar-worker.js", import.meta.url));
-      worker.addEventListener("message", ({ data }) => {
-        callback(data);
-      });
+      worker.addEventListener(
+        "message",
+        ({ data }) => {
+          initialCallback(data);
+          worker.addEventListener("message", ({ data }) => pageCallback(data));
+        },
+        { once: true }
+      );
 
       worker.postMessage({ file });
     } else {
@@ -39,15 +47,42 @@
             useWebWorkers: true,
           })
         );
+      initialCallback({ pageCount: blobs.length });
       let pageIndex = 0;
       for (const blob of blobs)
-        callback({ pageBlob: await blob, pageIndex: pageIndex++ });
+        pageCallback({ pageBlob: await blob, pageIndex: pageIndex++ });
     }
   }
 
+  let topLoadIndicatorElem;
   onMount(async () => {
+    gsap.set(topLoadIndicatorElem, {
+      scaleX: 0,
+      transformOrigin: "left center",
+    });
     const fragment = document.createDocumentFragment();
-    getPageBlobs(({ pageBlob, pageIndex }) => {
+    let loaded = 0;
+    const addImages = () => {
+      if (fragment.childElementCount) {
+        imageContainer.appendChild(fragment);
+      }
+
+      if (loaded < imageElems.length) {
+        setTimeout(addImages, 112);
+      } else {
+        gsap.to(topLoadIndicatorElem, {
+          scaleX: 0,
+          startAt: { transformOrigin: "right center" },
+        });
+      }
+    };
+
+    const handleFileParse = ({ pageCount }) => {
+      imageElems.push(...Array(pageCount));
+      addImages();
+    };
+
+    const handlePageParse = ({ pageBlob, pageIndex }) => {
       const image = new Image();
       image.addEventListener("load", (e) => URL.revokeObjectURL(e.target.src), {
         once: true,
@@ -58,20 +93,13 @@
       image.setAttribute("data-page", pageIndex);
       image.style.order = pageIndex.toString();
       fragment.appendChild(image);
-      imageElems.push(image);
-    });
-
-    const addImages = () => {
-      if (fragment.childElementCount) {
-        loadCount += fragment.childElementCount;
-        imageContainer.appendChild(fragment);
-      }
-
-      console.log("hii??");
-      // TODO: stop timeout once all pages have been loaded
-      setTimeout(addImages, 112);
+      imageElems[pageIndex] = image;
+      gsap.to(topLoadIndicatorElem, {
+        scaleX: ++loaded / imageElems.length,
+      });
     };
-    addImages();
+
+    getPageBlobs(handleFileParse, handlePageParse);
   });
 
   let cursor_mode = "pointer";
@@ -286,6 +314,7 @@
   on:mouseup={handleMouseUp}
   on:mousemove={handleMouseMove}
 />
+<div class="top-load-indicator" bind:this={topLoadIndicatorElem} />
 <div class="side-pane" class:show={showSidePane}>
   <div class="page-indicator">
     <input
@@ -297,7 +326,7 @@
       on:focus={handlePageNumberInputFocus}
       on:blur={handlePageNumberInputBlur}
     />
-    <div class="total-pages default-hide">/{loadCount}</div>
+    <div class="total-pages default-hide">/{imageElems.length}</div>
   </div>
   <div class="action-col default-hide">
     <div class="icon-wrap rtl" on:click={handleRTLClick}>
@@ -345,8 +374,17 @@
   .main-container.hand {
     cursor: grab;
   }
-  /* .top-bar {
-  } */
+  .top-load-indicator {
+    position: fixed;
+    width: 100%;
+    top: 0;
+    left: 0;
+    height: 4px;
+    background-color: var(--red);
+    z-index: 999;
+    box-shadow: 1px 1px 12px 4px rgb(188 48 47 / 10%);
+    border-radius: 0 15px 15px 0;
+  }
   .side-pane {
     display: flex;
     flex-direction: column;
